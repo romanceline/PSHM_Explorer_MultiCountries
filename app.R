@@ -26,6 +26,7 @@ library(gridExtra)
 library(ggpubr)
 library(cowplot)
 library(shinyjs)
+library(ggiraph)
 
 
 ### Part 1 - Read all datasets, files involved in the slide deck production
@@ -485,7 +486,12 @@ return(TrickLegend)
 css <- 
   "
 #dd {font-size: 10px;valign=0}
+#tab2 {background-color:rgba(245, 245, 245, 0.85);padding:10px;margin:10px 100px 5px 100px;border-radius: 10px}
 #tab {background-color:#EEF0F2;padding:10px;margin:10px 100px 5px 100px;border-radius: 10px}
+#info {font-size: 11px;color:grey}
+#titleinfo {font-size: 12px;color:grey}
+#note {font-size: 10px}
+
 #internaltab {background-color:white;padding:2px 5px 0px 5px;border-radius: 10px}
 #window {background-color:white;padding:5px 5px 5px 5px;margin:5px 5px 5px 5px;border-radius: 5px;}
 #DD {font-size: 10px;valign=0;font-weight: bold}
@@ -525,8 +531,12 @@ ui <- fluidPage(
   
   # Application title
   titlePanel(h4("Country Comparisons: Daily Cases and Deaths over Severity of Public Health and Social Measures (PHSM)")),
-  
-  div('Last updated on the 19th of October 2020'),
+  div(id='note','Last updated on the 19th of October 2020'),
+  #uiOutput("hover_info"),
+  div(id='tab2',div(id='titleinfo','Please hover over the points on the epicurves for more information'),
+      div(id='info',htmlOutput("txt"))),
+      
+
   
   
   div(
@@ -534,7 +544,7 @@ ui <- fluidPage(
     plotOutput("Epiplot",height=300,hover = hoverOpts("plot_hover", delay=300,delayType = c("debounce", "throttle"))),
     plotOutput("SeverityPlot",height=100),
     #tableOutput('DatasetTest'),
-    uiOutput("hover_info"),
+    #uiOutput("hover_info"),
     ),
   
   br(),
@@ -697,6 +707,19 @@ server <- function(input, output,session) {
     point$ADM0NAME
   })
   
+  output$txt<-renderUI({ 
+      hover <- input$plot_hover
+      point <- nearPoints(KeyValues(), hover, threshold = 5, maxpoints = 1, addDist = TRUE)
+      #if (nrow(point) == 0) return(' ')
+      HTML(paste0("<b>Country: </b>",point$ADM0NAME,"<br/>",'<b>Date: </b>',point$DateReport1,"<br/>", '<b>Events: </b>',point$Narrative))
+      
+      # wellPanel(
+      #   #style = style,
+      #   p(HTML(paste0("<b>", point$ADM0NAME, "</b>","<br/>","<b> Date: </b>", point$DateReport1,"<br/>",
+      #                 "<b> Events: </b>", point$Narrative)))
+      
+    })
+    
   output$hover_info <- renderUI({
     hover <- input$plot_hover
     point <- nearPoints(KeyValues(), hover, threshold = 5, maxpoints = 1, addDist = TRUE)
@@ -716,10 +739,11 @@ server <- function(input, output,session) {
     # z-index is set so we are sure are tooltip will be on top
     style <- paste0("position:absolute; z-index:100; background-color: rgba(245, 245, 245, 0.85); ",
                     "left:", left_px+10, "px; top:", top_px - 100, "px;")
+    
 
     # actual tooltip created as wellPanel
     wellPanel(
-      style = style,
+      #style = style,
       p(HTML(paste0("<b>", point$ADM0NAME, "</b>","<br/>","<b> Date: </b>", point$DateReport1,"<br/>",
                     "<b> Events: </b>", point$Narrative)))
     )
