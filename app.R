@@ -31,7 +31,7 @@ library(ggiraph)
 
 ### Part 1 - Read all datasets, files involved in the slide deck production
 
-#setwd("C:/Users/romanc/Desktop/R/Scripts/ShinyApps/Stringency_MultipleCountries_v3/")
+#setwd("C:/Users/romanc/Documents/GitHub/PSHM_Explorer_MultiCountries")
 
 #StringencyIndex<-read.csv('StringencyIndex_.csv',row.names=NULL) %>% mutate(Date=as.Date(Date))
 # 
@@ -60,25 +60,25 @@ Legend<-read.csv('Legend.csv') %>% pivot_longer(cols=c(X.1:X.100)) %>% select(-c
 
 MyPalette<-c("#008dc9ff", "#d86422ff", "#20313bff", "#d4aa7dff", "#197278ff","#686868", "#f2545bff", "#90a9b7ff", "#224870ff", "#66a182ff", "#885053ff")
 
-KeyDates_SeverityIndex<-read_excel('KeyDates.xlsx',sheet='Severity Index') %>% 
+KeyDates_SeverityIndex<-read_excel('KeyDates_.xlsx',sheet='Severity Index') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_All)
-KeyDates_Schools<-read_excel('KeyDates.xlsx',sheet='Schools') %>% 
+KeyDates_Schools<-read_excel('KeyDates_.xlsx',sheet='Schools') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_Schools)
-KeyDates_Masks<-read_excel('KeyDates.xlsx',sheet='Masks') %>% 
+KeyDates_Masks<-read_excel('KeyDates_.xlsx',sheet='Masks') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_Masks)
-KeyDates_Businesses<-read_excel('KeyDates.xlsx',sheet='Businesses') %>% 
+KeyDates_Businesses<-read_excel('KeyDates_.xlsx',sheet='Businesses') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_Businesses)
-KeyDates_Movements<-read_excel('KeyDates.xlsx',sheet='Movements') %>% 
+KeyDates_Movements<-read_excel('KeyDates_.xlsx',sheet='Movements') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_Movements)
-KeyDates_Borders<-read_excel('KeyDates.xlsx',sheet='Borders') %>% 
+KeyDates_Borders<-read_excel('KeyDates_.xlsx',sheet='Borders') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_Borders)
-KeyDates_Gatherings<-read_excel('KeyDates.xlsx',sheet='Gatherings') %>% 
+KeyDates_Gatherings<-read_excel('KeyDates_.xlsx',sheet='Gatherings') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy"))))%>% 
   select(Date,ADM0NAME,Narrative_Gatherings)
 
@@ -189,7 +189,7 @@ CheckAtLeast4Values<-function(){
   }
   return(ListCountriesOkToSpline)}
 
-  
+
 # GlobalDataset_<-data.frame()
 # for (ctr in CheckAtLeast4Values()){
 #   GlobalDataset<-DatasetWithSplineValues(ctr)
@@ -278,9 +278,24 @@ Dataset_ToPlot<-function(ListCountries,Log,CasesOrDeaths,StartDate,EndDate,Measu
   
   
   
-
+DatesAllowed<-function(ListCountries,StartDate,EndDate,RealValues,Log,CasesOrDeaths,TimeScale,Measure){
+  Dataset<-Dataset_ToPlot(ListCountries,Log,CasesOrDeaths,StartDate,EndDate,Measure,TimeScale)
+  Points<-Dataset %>% filter(!is.na(Narrative))
+  min<-min(Points$DateReport1)
+  max<-max(Points$DateReport1)
+  return(list=c(minDateAllowed=min,maxDateAllowed=max))
+}
   
 plotEpi<-function(ListCountries,StartDate,EndDate,RealValues,Log,CasesOrDeaths,TimeScale,Measure){
+  if (Measure=='All'){
+    alf<-100
+  }
+  if (Measure!='All'){
+    alf<-0
+  }
+  #Above, little trick so that points on epicurves are invisible if selection isn't PHSM global index
+  #Check with PHSM team if they want to develop the pop up for masks, schools, ...
+  
   Dataset<-Dataset_ToPlot(ListCountries,Log,CasesOrDeaths,StartDate,EndDate,Measure,TimeScale)
   
   if (CasesOrDeaths=='Cases'){
@@ -305,7 +320,7 @@ plotEpi<-function(ListCountries,StartDate,EndDate,RealValues,Log,CasesOrDeaths,T
   if (TimeScale=='Absolute'){
     plot<-ggplot(Dataset,aes(x=X_axis,y=SplineValue,group=ADM0NAME,color=ADM0NAME))+
         geom_line(size=0.7)+
-        geom_point(data=Points,size=3)+
+        geom_point(data=Points,size=3,alpha=alf)+
         scale_y_continuous(ttl,position='left',breaks=seq(0,MaxY,MaxY/5),labels=seq(0,MaxY,MaxY/5),limits=c(NA,MaxY))+
         theme_minimal()+
         theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.title.y.right=element_blank(),
@@ -324,7 +339,7 @@ plotEpi<-function(ListCountries,StartDate,EndDate,RealValues,Log,CasesOrDeaths,T
       geom_line(aes(x=X_axis,y=SplineValue,group=ADM0NAME,color='First implementation of \nthe measure'),linetype=2,size=0.7,show.legend=TRUE)+
       geom_line(size=0.7,aes(x=X_axis,y=SplineValue,group=ADM0NAME,color=ADM0NAME))+
       geom_vline(xintercept = 0, linetype="dashed",show.legend = TRUE)+
-      geom_point(data=Points,size=3,aes(x=X_axis,y=SplineValue,group=ADM0NAME,color=ADM0NAME))+
+      geom_point(data=Points,size=3,aes(x=X_axis,y=SplineValue,group=ADM0NAME,color=ADM0NAME),alpha=alf)+
       scale_y_continuous(ttl,position='left',breaks=seq(0,MaxY,MaxY/5),labels=seq(0,MaxY,MaxY/5),limits=c(NA,MaxY))+
       scale_x_continuous(breaks=c(0,seq(round(RelStartDate/10)*10,RelMaxDate+5,20)),limits=c(RelStartDate,RelMaxDate+1))+
       theme_minimal()+
@@ -531,7 +546,7 @@ ui <- fluidPage(
   
   # Application title
   titlePanel(h4("Country Comparisons: Daily Cases and Deaths over Severity of Public Health and Social Measures (PHSM)")),
-  div(id='note','Last updated on the 19th of October 2020'),
+  div(id='note','Last updated on the 26th of October 2020'),
   #uiOutput("hover_info"),
   div(id='tab2',div(id='titleinfo','Please hover over the points on the epicurves for more information'),
       div(id='info',htmlOutput("txt"))),
@@ -595,6 +610,11 @@ server <- function(input, output,session) {
     req(input$country)
     maxDates(input$country)
   })
+  
+  ConditionDates<-reactive({
+    req(input$country)
+    DatesAllowed(input$country,StartDate(),EndDate(),RealValues(),input$CasesOrDeaths,TimeScale(),Measure())
+  })
     
   
   
@@ -614,7 +634,7 @@ server <- function(input, output,session) {
   
   output$slider <- renderUI({
     req(StartDate(),EndDate(),Log())
-    dateRangeInput("date_range","Date Range",start=StartDate(), end=EndDate(),0.5,Log())
+    dateRangeInput("date_range","Date Range",start=StartDate(), end=EndDate())
   })
   
   Measure <- reactive({
