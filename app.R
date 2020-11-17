@@ -27,6 +27,9 @@ library(ggpubr)
 library(cowplot)
 library(shinyjs)
 library(ggiraph)
+library(zoo)
+library(forecast)
+library(imputeTS)
 
 
 ### Part 1 - Read all datasets, files involved in the slide deck production
@@ -54,49 +57,74 @@ library(ggiraph)
 StringencyIndex<-read.csv('StringencyIndex.csv')
 
 StringencyIndex<-StringencyIndex %>% rename(Schools=School,Businesses=Workplace,Movements=StayHome,Borders=Travels) %>% 
-  mutate(Date=as.Date(Date)) %>% mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME))
+  mutate(Date=as.Date(Date)) %>% mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+                                        ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME)) %>% 
+  arrange(ADM0NAME)
 
-Legend<-read.csv('Legend.csv') %>% pivot_longer(cols=c(X.1:X.100)) %>% select(-c(X,name))
+Legend<-read.csv('Legend.csv') %>% pivot_longer(cols=c(X.1:X.100)) %>% select(-c(X,name)) %>% 
+  mutate(Country=if_else(Country=='Kosovo','Kosovo(1)',Country))
 
 MyPalette<-c("#008dc9ff", "#d86422ff", "#20313bff", "#d4aa7dff", "#197278ff","#686868", "#f2545bff", "#90a9b7ff", "#224870ff", "#66a182ff", "#885053ff")
 
-KeyDates_SeverityIndex<-read_excel('KeyDates_.xlsx',sheet='Severity Index') %>% 
+KeyDates_SeverityIndex<-read_excel('KeyDates.xlsx',sheet='Severity Index') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
-  select(Date,ADM0NAME,Narrative_All)
-KeyDates_Schools<-read_excel('KeyDates_.xlsx',sheet='Schools') %>% 
+  select(Date,ADM0NAME,Narrative_All) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+         ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME))
+KeyDates_Schools<-read_excel('KeyDates.xlsx',sheet='Schools') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
-  select(Date,ADM0NAME,Narrative_Schools)
-KeyDates_Masks<-read_excel('KeyDates_.xlsx',sheet='Masks') %>% 
+  select(Date,ADM0NAME,Narrative_Schools) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+         ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME))
+KeyDates_Masks<-read_excel('KeyDates.xlsx',sheet='Masks') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
-  select(Date,ADM0NAME,Narrative_Masks)
-KeyDates_Businesses<-read_excel('KeyDates_.xlsx',sheet='Businesses') %>% 
+  select(Date,ADM0NAME,Narrative_Masks) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+         ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME))
+KeyDates_Businesses<-read_excel('KeyDates.xlsx',sheet='Businesses') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
-  select(Date,ADM0NAME,Narrative_Businesses)
-KeyDates_Movements<-read_excel('KeyDates_.xlsx',sheet='Movements') %>% 
+  select(Date,ADM0NAME,Narrative_Businesses) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+         ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME))
+KeyDates_Movements<-read_excel('KeyDates.xlsx',sheet='Movements') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
   select(Date,ADM0NAME,Narrative_Movements)
-KeyDates_Borders<-read_excel('KeyDates_.xlsx',sheet='Borders') %>% 
+KeyDates_Borders<-read_excel('KeyDates.xlsx',sheet='Borders') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy")))) %>% 
-  select(Date,ADM0NAME,Narrative_Borders)
-KeyDates_Gatherings<-read_excel('KeyDates_.xlsx',sheet='Gatherings') %>% 
+  select(Date,ADM0NAME,Narrative_Borders) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+         ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME))
+KeyDates_Gatherings<-read_excel('KeyDates.xlsx',sheet='Gatherings') %>% 
   mutate(Date=as.Date(parse_date_time(Date,c("dmy", "ymd","mdy"))))%>% 
-  select(Date,ADM0NAME,Narrative_Gatherings)
+  select(Date,ADM0NAME,Narrative_Gatherings) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Republic of Moldova','Republic Of Moldova',ADM0NAME),
+         ADM0NAME=if_else(ADM0NAME=='Bosnia and Herzegovina','Bosnia And Herzegovina',ADM0NAME))
 
 
 MainDataset<-read.csv("qry_covid_running_cases_country_date_.CSV") %>% 
   mutate(ADM0NAME=str_to_title(ADM0NAME),
-         DateReport1=as.Date(parse_date_time(DateReport1,c("dmy", "ymd","mdy")))) 
+         DateReport1=as.Date(parse_date_time(DateReport1,c("dmy", "ymd","mdy")))) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Kosovo','Kosovo(1)',ADM0NAME))
 
 PopulationDataset<-read.csv('ref_Country.csv') %>% select(ADM0NAME,UNPOP2019) %>% mutate(ADM0NAME=str_to_title(ADM0NAME))
 
-MainDataset<-MainDataset %>% left_join(StringencyIndex,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
-  left_join(KeyDates_SeverityIndex,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
-  left_join(KeyDates_Masks,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
-  left_join(KeyDates_Schools,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
-  left_join(KeyDates_Businesses,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
-  left_join(KeyDates_Borders,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
-  left_join(KeyDates_Gatherings,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>% 
+MainDataset<-MainDataset %>% left_join(StringencyIndex,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
+  left_join(KeyDates_SeverityIndex,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
+  left_join(KeyDates_Masks,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
+  left_join(KeyDates_Schools,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
+  left_join(KeyDates_Businesses,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
+  left_join(KeyDates_Borders,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
+  left_join(KeyDates_Gatherings,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date")) %>%
   left_join(KeyDates_Movements,by=c("ADM0NAME" = "ADM0NAME", "DateReport1" = "Date"))
+
+# MainDataset<-StringencyIndex %>% left_join(MainDataset,by=c("ADM0NAME" = "ADM0NAME", "Date" = "DateReport1")) %>% 
+#   left_join(KeyDates_SeverityIndex,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date")) %>% 
+#   left_join(KeyDates_Masks,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date")) %>% 
+#   left_join(KeyDates_Schools,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date")) %>% 
+#   left_join(KeyDates_Businesses,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date")) %>% 
+#   left_join(KeyDates_Borders,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date")) %>% 
+#   left_join(KeyDates_Gatherings,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date")) %>% 
+#   left_join(KeyDates_Movements,by=c("ADM0NAME" = "ADM0NAME", "Date" = "Date"))
   
 RelativeDays<-function(ctr){
   DatasetCountry<-MainDataset %>% filter(ADM0NAME==ctr)
@@ -174,7 +202,18 @@ DatasetWithSplineValues<-function(ctr){
     left_join(CountryDataset_Cases,by='DateReport1') %>% 
     left_join(CountryDataset_Deaths,by='DateReport1') %>% 
     left_join(CountryDataset_logCases,by='DateReport1') %>% 
-    left_join(CountryDataset_logDeaths,by='DateReport1')
+    left_join(CountryDataset_logDeaths,by='DateReport1') 
+  
+  x <- zoo(CountryDataset_$Spline_3DaysAverage_logCases,CountryDataset_$DateReport1)
+  x <- na_interpolation(x, option = "linear") %>% fortify.zoo
+  
+  y <- zoo(CountryDataset_$Spline_3DaysAverage_logDeaths,CountryDataset_$DateReport1)
+  y <- na_interpolation(y, option = "linear") %>% fortify.zoo
+  
+  CountryDataset_<-CountryDataset_ %>% left_join(x,by=c('DateReport1'='Index')) %>% rename(Spline_3DaysAverage_logCases_='.')
+  CountryDataset_<-CountryDataset_ %>% left_join(y,by=c('DateReport1'='Index')) %>% rename(Spline_3DaysAverage_logDeaths_='.')
+  
+  
   return(CountryDataset_)
   }
 
@@ -198,7 +237,8 @@ CheckAtLeast4Values<-function(){
 # 
 # GlobalDataset_<-write.csv(GlobalDataset_,'GlobalDataset.csv')
 
-GlobalDataset_<-read.csv('GlobalDataset.csv') %>% mutate(DateReport1=as.Date(DateReport1))
+GlobalDataset_<-read.csv('GlobalDataset.csv') %>% mutate(DateReport1=as.Date(DateReport1)) %>% 
+  mutate(ADM0NAME=if_else(ADM0NAME=='Kosovo','Kosovo(1)',ADM0NAME))
   
 Dataset_Cases_Normal<-GlobalDataset_ %>% select(ADM0NAME,DateReport1,GlobalIndex,Masks,Schools,Businesses,Gatherings,Movements,Borders,
                                                 Narrative_All,Narrative_Masks,Narrative_Schools,Narrative_Businesses,Narrative_Borders,Narrative_Gatherings,Narrative_Movements,
@@ -214,12 +254,12 @@ Dataset_Deaths_Normal<-GlobalDataset_ %>% select(ADM0NAME,DateReport1,GlobalInde
 Dataset_Cases_Log<-GlobalDataset_ %>% select(ADM0NAME,DateReport1,GlobalIndex,Masks,Schools,Businesses,Gatherings,Movements,Borders,
                                              Narrative_All,Narrative_Masks,Narrative_Schools,Narrative_Businesses,Narrative_Borders,Narrative_Gatherings,Narrative_Movements,
                                              Days_All,Days_Schools,Days_Masks,Days_Gatherings,Days_Movements,Days_Borders,Days_Businesses,
-                                             RealValue=log_cases,SplineValue=Spline_3DaysAverage_logCases)
+                                             RealValue=log_cases,SplineValue=Spline_3DaysAverage_logCases_)
 
 Dataset_Deaths_Log<-GlobalDataset_ %>% select(ADM0NAME,DateReport1,GlobalIndex,Masks,Schools,Businesses,Gatherings,Movements,Borders,
                                              Narrative_All,Narrative_Masks,Narrative_Schools,Narrative_Businesses,Narrative_Borders,Narrative_Gatherings,Narrative_Movements,
                                              Days_All,Days_Schools,Days_Masks,Days_Gatherings,Days_Movements,Days_Borders,Days_Businesses,
-                                             RealValue=log_deaths,SplineValue=Spline_3DaysAverage_logDeaths)
+                                             RealValue=log_deaths,SplineValue=Spline_3DaysAverage_logDeaths_)
   
 
 Dataset_ToPlot<-function(ListCountries,Log,CasesOrDeaths,StartDate,EndDate,Measure,TimeScale){
@@ -229,7 +269,7 @@ Dataset_ToPlot<-function(ListCountries,Log,CasesOrDeaths,StartDate,EndDate,Measu
   }
   
   if (CasesOrDeaths=='Cases' & Log=='True'){
-    Dataset<-Dataset_Cases_Log
+    Dataset<-Dataset_Cases_Log 
   }
   
   if (CasesOrDeaths=='Deaths' & Log=='False'){
@@ -416,7 +456,7 @@ PlotSeverity<-function(ListCountries,Log,CasesOrDeaths,country_hovered,Date_hove
                                   Measure=='Gatherings'~ 'Gatherings Measures \nSeverity',
                                   Measure=='Movements'~ 'Movements Measures \nSeverity',
                                   Measure=='Borders' ~ 'Int. Travel Measures \nSeverity',
-                                  Measure=='Movements' ~ 'Movements Measures \nSeverity',
+                                  Measure=='Businesses' ~ 'Businesses Measures \nSeverity',
                                   Measure=='Masks' ~ 'Masks Measures \nSeverity',
                                   Measure=='All' ~ 'PHSM Severity \n')
  if (TimeScale=='Absolute'){
@@ -426,7 +466,7 @@ PlotSeverity<-function(ListCountries,Log,CasesOrDeaths,country_hovered,Date_hove
       scale_color_manual('Country',breaks=sort(unique(Dataset$ADM0NAME)))+
       scale_alpha_continuous(range=c(0,1))+
       theme_minimal()+
-      theme(axis.title.x=element_blank(),axis.text.y=element_text(color='white'),axis.ticks.y=element_blank(),plot.margin = unit(c(1,5,1,5),"lines"))+
+      theme(axis.title.x=element_blank(),axis.text.y=element_text(color='white'),axis.text.x=element_text(angle = 90),axis.ticks.y=element_blank(),plot.margin = unit(c(1,5,1,5),"lines"))+
       scale_x_date(date_breaks = "15 days",date_labels =  "%d-%b",limits=c(StartDate,EndDate+1))+
       scale_y_continuous(ttl,breaks=MaxValue)+
       coord_cartesian(clip = 'off')+
@@ -545,8 +585,8 @@ ui <- fluidPage(
   
   
   # Application title
-  titlePanel(h4("Country Comparisons: Daily Cases and Deaths over Severity of Public Health and Social Measures (PHSM)")),
-  div(id='note','Last updated on the 26th of October 2020'),
+  titlePanel(h4("Regional Overview: Daily Cases and Deaths over Severity of Public Health and Social Measures (PHSM)")),
+  div(id='note','Last updated on the 9th of November 2020'),
   #uiOutput("hover_info"),
   div(id='tab2',div(id='titleinfo','Please hover over the points on the epicurves for more information'),
       div(id='info',htmlOutput("txt"))),
@@ -575,7 +615,7 @@ ui <- fluidPage(
          
     column(3,
            div(id="dd",selectInput("Index","Select the PHSM of interest",
-                                   c("PHSM Severity Index",'Masks',"Schools","Movements","Gatherings","Movements","International Travel"),multiple=FALSE)),
+                                   c("PHSM Severity Index",'Masks',"Schools","Movements","Gatherings","Businesses","International Travel"),multiple=FALSE)),
            div(id="dd",selectInput("timeline","Select the type of timeline",c("Relative to the first implementation of measure selected","Absolute"),
                                    selected=c('Absolute'))),
           div(id="dd",uiOutput("slider"))),
@@ -643,7 +683,7 @@ server <- function(input, output,session) {
               input$Index=="Schools" ~ "Schools",
               input$Index=="Movements" ~ "Movements",
               input$Index=="Gatherings" ~ "Gatherings",
-              input$Index=="Movements" ~ "Movements",
+              input$Index=="Businesses" ~ "Businesses",
               input$Index=="International Travel" ~ "Borders",
               input$Index=="Masks" ~ "Masks") 
   })
